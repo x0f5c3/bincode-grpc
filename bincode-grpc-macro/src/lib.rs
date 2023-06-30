@@ -1,9 +1,9 @@
-use heck::{ShoutySnakeCase, SnakeCase};
+use heck::{ToShoutySnakeCase, ToSnakeCase};
 use proc_macro::TokenStream;
 use quote::ToTokens;
-use syn::export::TokenStream2;
+use syn::__private::TokenStream2;
 use syn::parse::{Parse, ParseStream};
-use syn::{token, FnArg, ImplItem};
+use syn::{token, FnArg, ImplItem, ImplItemFn, Token};
 use syn::{Attribute, Ident, ReturnType, Visibility};
 
 /// // request type
@@ -20,6 +20,7 @@ use syn::{Attribute, Ident, ReturnType, Visibility};
 ///
 /// // user defined trait (`ident`)
 /// ```
+/// use bincode_grpc_macro::service;
 /// #[service]
 /// pub trait Greeter {
 ///     ...
@@ -81,7 +82,7 @@ impl Service {
         quote::quote! {
             #[derive(Clone)]
             #vis struct #ident {
-                client: ::bincode_grpc::grpcio::Client,
+                client: ::bincode_grpc::tonic::Client,
             }
         }
     }
@@ -90,7 +91,7 @@ impl Service {
         let ident = self.client_ident();
         quote::quote! {
             impl std::ops::Deref for #ident {
-                type Target = ::bincode_grpc::grpcio::Client;
+                type Target = ::bincode_grpc::tonic::Client;
 
                 fn deref(&self) -> &Self::Target {
                     &self.client
@@ -171,8 +172,8 @@ impl Service {
             }
         });
         quote::quote! {
-            #vis fn #fn_ident<S: #ident + Send + Clone + 'static>(s: S) -> ::bincode_grpc::grpcio::Service {
-                let mut builder = ::bincode_grpc::grpcio::ServiceBuilder::new();
+            #vis fn #fn_ident<S: #ident + Send + Clone + 'static>(s: S) -> ::bincode_grpc::tonic::Service {
+                let mut builder = ::bincode_grpc::tonic::ServiceBuilder::new();
                 #( #method_registrations )*
                 builder.build()
             }
@@ -244,7 +245,7 @@ impl Parse for RpcMethod {
         syn::parenthesized!(content in input);
         let mut args = vec![];
         let mut receiver = None;
-        for arg in content.parse_terminated::<syn::FnArg, token::Comma>(syn::FnArg::parse)? {
+        for arg in content.parse_terminated(syn::FnArg::parse, Token![,])? {
             match arg {
                 FnArg::Receiver(captures) => {
                     if captures.mutability.is_none() {
@@ -428,6 +429,7 @@ pub fn service(_attr: TokenStream, tokens: TokenStream) -> TokenStream {
 }
 
 /// ```
+/// use bincode_grpc_macro::server;
 /// struct GreeterServer;
 ///
 /// #[server]
@@ -463,7 +465,7 @@ pub fn server(_attr: TokenStream, tokens: TokenStream) -> TokenStream {
         .items
         .iter()
         .filter_map(|item| match item {
-            ImplItem::Method(m) => Some(m),
+            ImplItem::Fn(m) => Some(m),
             _ => None,
         })
         .map(|m| {
@@ -547,9 +549,9 @@ pub fn server(_attr: TokenStream, tokens: TokenStream) -> TokenStream {
     };
 
     for method in new_methods {
-        let method: syn::ImplItemMethod =
+        let method: ImplItemFn =
             syn::parse(method.into_token_stream().into()).expect("cannot parse method");
-        item.items.push(syn::ImplItem::Method(method));
+        item.items.push(syn::ImplItem::Fn(method));
     }
 
     let new_item = item.into_token_stream();
@@ -557,5 +559,6 @@ pub fn server(_attr: TokenStream, tokens: TokenStream) -> TokenStream {
     (quote::quote! {
         #original_impl
         #new_item
-    }).into()
+    })
+    .into()
 }

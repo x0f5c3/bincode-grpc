@@ -27,7 +27,9 @@ impl TestService for TestServer {
         Output {}
     }
 
-    fn rpc_method3(&mut self, forward_id: u64, forward_only: bool) -> Result<Output, ()> { Ok(Output {}) }
+    fn rpc_method3(&mut self, forward_id: u64, forward_only: bool) -> Result<Output, ()> {
+        Ok(Output {})
+    }
 }
 
 fn main() {
@@ -39,13 +41,13 @@ fn main() {
         .register_service(service)
         .bind("0.0.0.0", 9999)
         .channel_args(channel_builder.build_args())
-        .build().unwrap();
+        .build()
+        .unwrap();
     server.start();
 
     // client
     let env = std::sync::Arc::new(bincode_grpc::grpcio::Environment::new(8));
-    let client_channel = bincode_grpc::grpcio::ChannelBuilder::new(env)
-        .connect("127.0.0.1:9999");
+    let client_channel = bincode_grpc::grpcio::ChannelBuilder::new(env).connect("127.0.0.1:9999");
     let client = TestServiceClient::new(client_channel);
     println!("{:?}", client.rpc_method1(&(Input {},)));
 }
@@ -69,4 +71,3 @@ impl TestService3 for TestServer {
         Output {}
     }
 }
-
